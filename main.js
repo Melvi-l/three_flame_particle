@@ -5,9 +5,11 @@ import flammeVertex from "./shaders/flamme/vertex.glsl"
 import flammeFragment from "./shaders/flamme/fragment.glsl"
 import smokeVertex from "./shaders/smoke/vertex.glsl"
 import smokeFragment from "./shaders/smoke/fragment.glsl"
+import emberVertex from "./shaders/ember/vertex.glsl"
+import emberFragment from "./shaders/ember/fragment.glsl"
 
 let camera, scene, renderer, controls, debug; // ThreeJS globals
-let flammeParticle, smokeParticle;
+let flammeParticle, smokeParticle, emberParticle, dustParticle;
 let sizes;
 
 init()
@@ -30,7 +32,7 @@ function init() {
 
   // Camera
   camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-  camera.position.set(15, 2, 15)
+  camera.position.set(5, 2, 5)
   scene.add(camera)
 
   // Controls
@@ -50,6 +52,7 @@ function init() {
   addTestLight()
   addFlamme()
   addSmoke()
+  addEmber()
 }
 
 
@@ -91,7 +94,7 @@ function generateFlammeParticle(position, count, size, radius, height, speedFact
     vertexShader: flammeVertex,
     fragmentShader: flammeFragment,
     uniforms: {
-      u_position: {value: position},
+      u_position: { value: position },
       u_radius: { value: radius },
       u_height: { value: height },
       u_size: { value: size },
@@ -160,15 +163,15 @@ function generateSmokeParticle(position, count, size, radius, height, speedFacto
     vertexShader: smokeVertex,
     fragmentShader: smokeFragment,
     uniforms: {
-      u_position: {value: position},
+      u_position: { value: position },
       u_radius: { value: radius },
       u_height: { value: height },
       u_size: { value: size },
       u_time: { value: 0 },
       u_speedFactor: { value: speedFactor },
-      u_windForce: {value: windForce },
-      u_windWaveFactor: {value: windWaveFactor },
-      u_windWavePeriod: {value: windWavePeriod },
+      u_windForce: { value: windForce },
+      u_windWaveFactor: { value: windWaveFactor },
+      u_windWavePeriod: { value: windWavePeriod },
     },
   })
 
@@ -179,13 +182,13 @@ function generateSmokeParticle(position, count, size, radius, height, speedFacto
 
 function addSmoke() {
   const debugObject = {
-    position: new THREE.Vector3(0,1.5,0),
+    position: new THREE.Vector3(0, 1.5, 0),
     count: 1100,
     size: 130,
     smokeRadius: 0.6,
     smokeHeight: 5,
     speedFactor: 0.5,
-    windForce: new THREE.Vector3(4,0,0),
+    windForce: new THREE.Vector3(4, 0, 0),
     windWaveFactor: 5,
     windWavePeriod: 5
   }
@@ -202,6 +205,100 @@ function addSmoke() {
   folder.add(debugObject.windForce, "z").min(-10).max(10).step(0.01).name("windZ").onFinishChange(regen)
   folder.add(debugObject, "windWaveFactor").min(0).max(20).step(0.01).onFinishChange(regen)
   folder.add(debugObject, "windWavePeriod").min(0).max(20).step(0.01).onFinishChange(regen)
+}
+
+function generateEmberParticle(position, count, size, radius, height, speedFactor, spreadFactor) {
+  if (emberParticle) {
+    emberParticle.geometry.dispose()
+    emberParticle.material.dispose()
+    scene.remove(emberParticle)
+  }
+  const emberParticleGeometry = new THREE.BufferGeometry()
+  const emberParticlePosition = new Float32Array(count * 3)
+  const emberParticleScale = new Float32Array(count)
+  for (let i = 0; i < count; ++i) {
+    // Polar coordinate
+    const polarRadius = Math.random()
+    const polarAngle = Math.random() * 2 * Math.PI
+    emberParticlePosition[i * 3 + 0] = position.x + polarRadius * radius * Math.cos(polarAngle)
+    emberParticlePosition[i * 3 + 1] = position.y + Math.random() * height
+    emberParticlePosition[i * 3 + 2] = position.z + polarRadius * radius * Math.sin(polarAngle)
+
+    emberParticleScale[i] = Math.random()
+  }
+  emberParticleGeometry.setAttribute("position", new THREE.Float32BufferAttribute(emberParticlePosition, 3))
+  emberParticleGeometry.setAttribute("a_scale", new THREE.Float32BufferAttribute(emberParticleScale, 1))
+
+  // Material
+  const emberParticleMaterial = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: emberVertex,
+    fragmentShader: emberFragment,
+    uniforms: {
+      u_position: { value: position },
+      u_radius: { value: radius },
+      u_height: { value: height },
+      u_size: { value: size },
+      u_time: { value: 0 },
+      u_speedFactor: { value: speedFactor },
+      u_spreadFactor: { value: spreadFactor }
+    },
+  })
+
+  // Point
+  emberParticle = new THREE.Points(emberParticleGeometry, emberParticleMaterial)
+  scene.add(emberParticle)
+}
+
+function addEmber() {
+  const debugObject = {
+    position: new THREE.Vector3(0, 0, 0),
+    count: 50,
+    size: 180,
+    emberRadius: 0.5,
+    emberHeight: 3,
+    speedFactor: 1,
+    spreadFactor: 10,
+  }
+  const regen = () => generateEmberParticle(debugObject.position, debugObject.count, debugObject.size, debugObject.emberRadius, debugObject.emberHeight, debugObject.speedFactor, debugObject.spreadFactor)
+  regen()
+  const debugFunction = {
+    stationnary() {
+      debugObject.count = 70
+      debugObject.emberRadius = 2
+      debugObject.speedFactor = 0.1
+      debugObject.spreadFactor = 25
+      regen()
+    },
+    normal() {
+      debugObject.count = 50
+      debugObject.emberRadius = 0.5
+      debugObject.emberHeight = 2.9
+      debugObject.speedFactor = 1
+      debugObject.spreadFactor = 10
+      regen()
+    },
+    firework() {
+      debugObject.count = 120
+      debugObject.emberRadius = 0.41
+      debugObject.emberHeight = 4.2
+      debugObject.speedFactor = 2.5
+      debugObject.spreadFactor = 8
+      regen()
+    }
+  }
+  const folder = debug.addFolder("ember")
+  folder.add(debugObject, "count").min(0).max(500).step(1).name("Particle count").onFinishChange(regen)
+  folder.add(debugObject, "size").min(0).max(500).step(1).name("Particle size").onFinishChange(regen)
+  folder.add(debugObject, "emberRadius").min(0).max(4).step(0.01).onFinishChange(regen)
+  folder.add(debugObject, "emberHeight").min(0).max(8).step(0.01).onFinishChange(regen)
+  folder.add(debugObject, "speedFactor").min(0).max(3).step(0.01).onFinishChange(regen)
+  folder.add(debugObject, "spreadFactor").min(0).max(50).step(0.01).onFinishChange(regen)
+  folder.add(debugFunction, "stationnary")
+  folder.add(debugFunction, "normal")
+  folder.add(debugFunction, "firework")
 }
 
 // Animate
@@ -221,6 +318,9 @@ function animation() {
   }
   if (smokeParticle) {
     smokeParticle.material.uniforms.u_time.value = elapsedTimeSecond
+  }
+  if (emberParticle) {
+    emberParticle.material.uniforms.u_time.value = elapsedTimeSecond
   }
   // Render
   renderer.render(scene, camera)
